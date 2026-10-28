@@ -1,6 +1,8 @@
-# Offline Game Protection Research
+# RE:LOCK
 
-Experimental research into offline game protection, REA-assisted reconstruction, and the cost of hiding game logic and runtime state.
+**Defending Games Against AI Reconstruction**
+
+Can we stop AI from reconstructing a game? We build protections, attack them with REA, and publish the results.
 
 [Latest study](reports/RESULTS_MEMORY_BOUNDARY.md) · [Research reports](#research-reports) · [Evaluation workflow](#evaluation-workflow) · [Threat model](reports/FUNDAMENTAL_ANALYSIS.md)
 
