@@ -1,22 +1,22 @@
-# 게임 상태 관찰 실험: REA와 입출력, 메모리
+# Stateful Game Observations: REA, Input-Output Access, and Memory
 
-2026-10-28 · 공개 연구 기록. 내부 실험 코드와 실행 파일은 공개하지 않는다.
+2026-10-28 · Public research record. Internal experimental code and executables remain private.
 
-## 목적과 조건
+## Purpose and conditions
 
-이전 입력에 따라 적 상태·체력·점수가 달라지는 작은 자체 제작 게임 로직으로, 분석자가 얻을 수 있는 정보의 차이를 관찰했다. 대상은 **보호를 적용하지 않은** CLI 실행 파일이며 완성된 실제 게임 전체는 아니다. 입력은 초기값과 행동 문자열, 출력은 체력·점수·위치·행동 횟수다. 적의 내부 상태와 난수 상태는 출력하지 않는다.
+A small game-logic sample changes enemy state, health, and score based on previous actions. The study examined differences in information available to an investigator. The target was an **unprotected CLI executable**, not a complete game. Inputs were an initial seed and action string; outputs were health, score, position, and action count. Enemy and RNG state were not printed.
 
-- 정적 조건: 독립 평가자 1명이 바이너리를 REA/Ghidra로 분석했다. 대상 실행이나 GDB 사용은 금지했다.
-- 입출력 조건: 다른 독립 평가자 1명이 실행 결과만 관찰했다. 파일 분석과 메모리 검사는 금지했으며 200회 질의 예산을 주었다.
-- 메모리 관찰: 주 평가자가 별도로 GDB로 디버그 심볼이 있는 빌드의 상태를 2번 관찰했다. 이는 소스를 알고 진행한 정성 관찰이며 다른 두 평가와 비교 가능한 블라인드 재구현 시험이 아니다.
+- Static condition: one separate evaluator used REA/Ghidra. Executing the target or using GDB was prohibited.
+- Input-output condition: another evaluator could only observe execution results. Binary analysis and memory inspection were prohibited, with a budget of 200 target queries.
+- Memory observation: the source-aware primary investigator separately observed a debug-symbol build twice using GDB. This was a qualitative observation, not a blind reconstruction trial comparable to the other conditions.
 
-각 평가자에게 소스와 대화 기록을 제공하지 않았고 지정 폴더 밖을 읽지 않도록 지시했다. OS 수준의 파일 격리는 하지 않았다. 각 조건은 1명·1회이며 예산도 다르므로 아래 차이를 도구의 일반적인 성능이나 보호 효과로 해석할 수 없다. 입출력 평가자는 200회 질의 제한을 사용했고 정적 분석자는 같은 횟수의 도구 제한을 받지 않았다. 두 작업은 같은 호스트에서 병렬 실행됐다.
+Evaluators received no source or conversation history and were instructed not to read outside their folders. File access was not restricted by the OS. Each condition had one evaluator and one attempt, with different budgets. The input-output evaluator used a 200-query limit; the static evaluator had no equivalent tool-call limit. Both ran concurrently on the same host. These differences cannot establish general tool performance or protection effectiveness.
 
-## 별도 입력의 일치 결과
+## Held-out agreement
 
-주 평가자가 평가자에게 제공하지 않은 난수 시드와 행동을 만들고, 행동 길이별로 20개씩 총 120개를 사용해 원본과 재구현 결과 JSON의 네 필드를 비교했다.
+The primary investigator generated seeds and actions that were not provided to the evaluators: 20 sequences at each length, 120 in total. The four fields of the reconstructed and original JSON outputs were compared.
 
-| 행동 횟수 | REA 정적 분석 | 입출력만 관찰 |
+| Action count | REA static analysis | Input-output only |
 | ---: | ---: | ---: |
 | 0 | 20/20 | 20/20 |
 | 1 | 20/20 | 20/20 |
@@ -25,14 +25,14 @@
 | 64 | 20/20 | 0/20 |
 | 128 | 20/20 | 0/20 |
 
-![상태 길이별 정확도](figures/stateful-conditions.png)
+![Agreement by action-sequence length](figures/stateful-conditions.png)
 
-REA 평가자는 원본 실행 없이 코드를 재현했다. 입출력 평가자의 재현물은 부분 구현으로, 긴 행동에서 체력과 점수 계산이 틀렸지만 위치·행동 횟수는 이 표본에서 모두 일치했다. 관찰 가능한 출력 일부를 맞추는 것과 전체 상태 전이를 복원하는 것은 다른 목표임을 보여준다. 실제 게임의 시각적 유사성·완전 복제 가능성을 측정한 것은 아니다.
+The REA evaluator reconstructed the behavior without running the target. The input-output reconstruction was incomplete: health and score diverged on long sequences, while position and action count matched throughout this sample. Reproducing some observable fields and recovering a complete state transition are different goals. Visual similarity or complete game copying was not measured.
 
-## 메모리 관찰
+## Memory observation
 
-심볼이 남은 디버그 빌드에서 GDB로 한 행동 전후 `rng`, `threat`, `combo` 등 출력하지 않는 상태를 읽었다. 소스와 심볼이 있으므로 이것을 심볼 없는 배포본에서 동일한 난도로 관찰할 수 있다는 증거로 취급하지 않는다. 그러나 이 실험 구성에서는 출력에 없는 내부 정보가 메모리에 존재했고 디버거에서 읽혔다. 이 관찰은 보호 방식의 우회나 새로운 약점을 증명하지 않는다.
+GDB read internal fields such as `rng`, `threat`, and `combo` before and after one action in a debug-symbol build. Because the investigator had source and symbols, this is not evidence that a stripped distribution binary can be inspected with the same effort. It does establish that unprinted state existed in memory and was readable in this setup. This observation does not demonstrate a protection bypass or a new vulnerability.
 
-## 해석과 다음 단계
+## Interpretation and next steps
 
-제한된 입출력 질의로 이 특정 상태 전이를 완전히 학습하지 못했지만, REA 정적 분석은 이 비보호 바이너리를 별도 표본에서 재구현했다. 따라서 숨은 상태가 존재한다는 이유만으로 분석을 막을 수 있다고 주장할 수 없다. 정적·동적·입출력 조건은 각각 실제 가능한 범위와 예산을 명시해 다시 실험해야 하며, 상용 게임에 일반화하려면 소스 격리, 여러 독립 평가자·모델, 반복 실험, 다양한 게임/공격 예산이 필요하다. 보호 방식 적용 전의 관찰이며 복제 방어 성능을 측정한 결과가 아니다.
+Limited input-output queries did not fully recover this particular transition, while static REA analysis reproduced the unprotected binary on held-out samples. Hidden state alone therefore did not prevent analysis here. Static, dynamic, and input-output conditions need further tests with clearly stated access and budgets. Generalization to commercial games requires stronger source isolation, multiple evaluators and models, repeated trials, broader game samples, and varied attack budgets. This is an observation before protection, not a measurement of copy resistance.

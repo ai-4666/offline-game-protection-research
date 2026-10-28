@@ -1,37 +1,98 @@
-# 오프라인 게임 보호 연구 기록
+# Offline Game Protection Research
 
-REA를 이용한 게임 로직 재구현과 오프라인 보호 방법을 실험하고, 실패와 비용까지 기록합니다.
+Experimental research into offline game protection, REA-assisted reconstruction, and the cost of hiding game logic and runtime state.
 
-현재까지 시험한 작은 수동 시제품은 재구현을 막지 못했습니다. 복제 불가능을 달성했다는 주장은 하지 않습니다. 실험 대상은 대부분 자체 제작한 작은 CLI 게임 로직과 터미널 게임이며, 상용 게임 전체나 상용 보호 제품의 성능을 평가한 결과가 아닙니다.
+[Latest study](reports/RESULTS_MEMORY_BOUNDARY.md) · [Research reports](#research-reports) · [Evaluation workflow](#evaluation-workflow) · [Threat model](reports/FUNDAMENTAL_ANALYSIS.md)
 
-## 최근 결과
+The project evaluates small, privately held game-logic prototypes using REA, Ghidra, debugger observations, and held-out behavioral checks. It records reconstruction outcomes alongside execution costs and developer observations. **None of the tested prototypes has demonstrated that copying or reconstruction is impossible.**
 
-두 조각으로 나눈 내부 상태는 단순한 값 검색에서는 발견되지 않았지만, 조각을 합치거나 실행 중 레지스터를 관찰하면 복원됐습니다. 소스를 받지 않은 평가자의 REA 재구현은 별도 시나리오 149개에서 원본과 일치했습니다. 작은 합성 작업량의 실행 중앙값은 원본 0.88μs, 변환 후 1.88μs였습니다. FPS 측정은 아닙니다.
+This repository publishes reports and figures. Experimental source code, executables, reconstruction programs, and raw memory captures remain private.
 
-![내부 상태 관찰과 실행 비용](reports/figures/memory-study.png)
+## What has been evaluated
 
-## 연구 기록
+| Area | Completed work |
+| --- | --- |
+| Code transformations | Manual samples of function splitting, data encoding, a simple VM, permuted lookup tables, and build-specific representations. |
+| Reconstruction | REA/Ghidra investigations and separate AI-agent evaluations that received binaries and interface descriptions without the original source or conversation history. |
+| Observation limits | Static analysis, input-output observation, and selected debugger probes of stateful game logic. |
+| Runtime state | Two-share storage with changing masks, state-object snapshots, and register observations in a stripped executable. |
+| Execution costs | Repeated microbenchmarks and synthetic update workloads in a small terminal game or state-transition harness. |
+| Developer experience | Sample compile/link timings, breakpoint and call-stack checks, and notes on generated-source debugging. |
 
-| 순서 | 주제 | 결과 문서 |
+These are sample-specific experiments. They do not establish compatibility with arbitrary games, protection strength for a whole game, or the effectiveness of commercial protectors. The evaluators' file-access restrictions were instruction-based, not enforced by an OS sandbox.
+
+## Latest finding: changing storage does not change observation rights
+
+The latest prototype stored each internal value as two 32-bit shares. A direct word search did not find the original RNG value in the observed state objects, but summing the shares recovered every sampled value. The decoder also exposed the value in a CPU register in a stripped executable.
+
+| Check | Observed result |
+| --- | --- |
+| Original RNG word found directly in masked state objects | 0/80 snapshots |
+| Original RNG recovered by adding the shares | 80/80 snapshots |
+| Separate REA reconstruction, checked on held-out scenarios | 149/149 matches |
+| Synthetic update-bundle median: original / masked | 0.88 / 1.88 μs |
+| Persistent state object: original / masked | 28 / 44 bytes |
+
+Snapshots covered one state object at consecutive update boundaries, not all process memory. Execution time is a synthetic workload measurement, not FPS. The reconstruction trial had one evaluator and does not prove equivalence for every input.
+
+![State observations and execution cost](reports/figures/memory-study.png)
+
+See the [memory-boundary study](reports/RESULTS_MEMORY_BOUNDARY.md) for the setup, stripped-binary probe, correctness checks, and limits.
+
+## Evaluation workflow
+
+```mermaid
+flowchart TD
+    A["Define attacker access and reconstruction goal"] --> B["Build a local game-logic specimen"]
+    B --> C["Check baseline and transformed behavior"]
+    C --> D["REA, debugger, or input-output investigation"]
+    D --> E["Check reconstruction on held-out inputs"]
+    C --> F["Measure execution and developer costs"]
+    E --> G["Review evidence, failures, and limitations"]
+    F --> G
+    G --> H["Publish reports and figures only"]
+```
+
+Each report identifies whether an evaluator had already seen the source, which observations were allowed, and which inputs were reserved for later checking. Early source-aware trials are recorded separately from later evaluations without source disclosure.
+
+Execution measurements use repeated runs and state their workload and aggregation method. Values from different studies are separate measurements; compare variants within the same study rather than treating all reports as one controlled benchmark.
+
+## Research reports
+
+| Study | Question | Observed outcome |
 | --- | --- | --- |
-| 1 | 단순 제어 흐름·가상 머신 예비 비교 | [초기 실험](reports/RESULTS_2026-10-28.md) |
-| 2 | 함수 분리·데이터 인코딩 | [기존 방식 비교](reports/RESULTS_EXISTING_METHODS.md) |
-| 3 | 터미널 게임 적용과 개발 환경 관찰 | [게임 실험](reports/RESULTS_TERMINAL_GAME.md) |
-| 4 | 표 기반 보호 후보 | [표 후보 실험](reports/RESULTS_TABLE_CANDIDATE.md) |
-| 5 | 빌드별 다양화와 재구현 재사용 | [다양화 실험](reports/RESULTS_DIVERSE.md) |
-| 6 | REA 정적 분석·입출력 관찰·메모리 | [관찰 조건 실험](reports/RESULTS_STATEFUL_ATTACKS.md) |
-| 7 | 상태 분할과 관찰 권한의 경계 | [메모리 실험](reports/RESULTS_MEMORY_BOUNDARY.md) |
+| [Initial comparison](reports/RESULTS_2026-10-28.md) | What do simple control-flow and VM samples expose? | Core logic or interpreter data remained visible; VM execution cost increased. |
+| [Existing techniques](reports/RESULTS_EXISTING_METHODS.md) | How do manual splitting and encoding samples behave? | Source-aware reconstructions matched held-out inputs; costs varied. |
+| [Terminal game](reports/RESULTS_TERMINAL_GAME.md) | What changes when the same logic is linked into a playable sample? | Scripted final states matched; update and debugging costs were observed. |
+| [Lookup-table candidate](reports/RESULTS_TABLE_CANDIDATE.md) | Does permuting a precomputed rule prevent reconstruction? | An evaluator extracted the table and reproduced its behavior. |
+| [Build diversification](reports/RESULTS_DIVERSE.md) | Does a different binary representation prevent reuse? | A reconstruction from one variant also matched a second variant. |
+| [Stateful observations](reports/RESULTS_STATEFUL_ATTACKS.md) | What can static analysis and limited input-output access reveal? | REA reconstruction matched all test scenarios; the limited black-box attempt was incomplete. |
+| [Memory boundary](reports/RESULTS_MEMORY_BOUNDARY.md) | Can changing state storage prevent observation? | Shares and register values exposed the state; the prototype was reconstructed. |
 
-문제 정의와 이론적 한계는 [기초 분석](reports/FUNDAMENTAL_ANALYSIS.md)에 정리했습니다. 문서 간 성능 수치는 서로 다른 실행과 조건에서 얻었으므로 한 표의 같은 회차 내 결과를 중심으로 읽어야 합니다.
+The [foundations report](reports/FUNDAMENTAL_ANALYSIS.md) distinguishes file copying, binary-assisted reconstruction, and behavior-based reimplementation.
 
-## 공개 범위와 한계
+## Validation boundaries
 
-- 결과 Markdown과 그래프만 공개합니다. 실험 소스, 실행 파일, 재구현 코드, 원시 메모리 자료는 포함하지 않습니다.
-- 내부 코드가 비공개이므로 외부 독자가 실험 전체를 그대로 재현할 수 없습니다. 이 저장소는 독립 재현이 완료된 보안 인증 자료가 아닙니다.
-- 소스를 제공하지 않은 평가도 접근 제한은 지시 기반이었고 OS 파일 격리는 아니었습니다. 조건당 평가자 수와 반복 횟수가 작습니다.
-- 하드웨어 격리와 암호화 계산은 조사만 했으며 보안 효과를 실측하지 않았습니다.
-- 각 결과 문서의 실험 조건, 실패, 미검증 항목을 함께 확인해야 합니다.
+- Matching a finite test set is evidence of observed agreement, not a proof of equivalence for every input.
+- A successful decompilation, a larger control-flow graph, or different binary hashes alone do not measure reconstruction resistance.
+- One evaluator per condition, concurrent workloads, unequal tool budgets, and instruction-based access restrictions limit several studies.
+- Terminal-game and synthetic update timings do not establish frame rate, loading performance, or player experience in a commercial engine.
+- Full engine integration, source-level debug mapping, update compatibility, and developer task time remain unmeasured.
+- Hardware isolation and fully homomorphic encryption were researched but not security-tested here. The checked WSL environment did not expose the required hardware interfaces.
 
-## 기록 방식
+Private experimental artifacts limit independent reproduction. These are preliminary reports with documented constraints, not a security certification or a reproducible benchmark distribution.
 
-새 결과는 결과 문서와 그래프로 추가하고 Draft PR에서 변경 내용을 검토합니다. 내부 코드가 결과 저장소에 섞이지 않도록 공개 파일 목록과 링크를 확인합니다. 실패를 성공으로 바꾸어 표현하거나, 문서·시뮬레이션을 실제 보안 검증으로 취급하지 않습니다.
+## Current direction
+
+The research now focuses on **which information an attacker can observe and what enforces that boundary**. Planned work includes stronger evaluator isolation, repeated trials with equal resource budgets, broader game workloads, and a separate evaluation of hardware-backed boundaries where suitable hardware is available.
+
+The long-term objective is useful offline protection with practical game performance and manageable developer costs. No completed result establishes a general solution to offline game copying.
+
+## Related work
+
+- [REA](https://github.com/morluto/rea): the analysis interface used in reconstruction experiments.
+- [Ghidra](https://github.com/NationalSecurityAgency/ghidra): the native-analysis provider used with REA.
+- [Tigress transformations](https://tigress.wtf/transformations.html): references for established transformation families. The manual samples are not Tigress-generated outputs.
+- [BTG Packer](https://github.com/uzokingkong/BTG-packer): a reference for this README's technical organization. BTG itself has not been evaluated in these studies.
+
+Public changes are limited to reviewed Markdown reports and figures. Internal implementation and diagnostic artifacts remain outside the publication checkout.

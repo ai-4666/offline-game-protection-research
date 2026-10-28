@@ -1,35 +1,35 @@
-# 표 기반 보호 후보: 예비 연구
+# Permuted Lookup-Table Candidate: Preliminary Study
 
-2026-10-28 · 공개 연구 기록. 실험 코드와 바이너리는 공개 대상이 아니다.
+2026-10-28 · Public research record. Experimental code and binaries remain private.
 
-## 아이디어와 연구 범위
+## Idea and scope
 
-기존 작은 게임의 충돌 계산을 미리 계산한 표로 바꾸고, 표 인덱스 순서와 결과 표현을 섞는다. 공격자가 실행 코드만 보았을 때 충돌 규칙을 즉시 읽기 어렵게 하는지 살펴본다. 이는 이 샘플에 수동 적용한 아이디어로 일반 게임용 변환기가 아니다. 표와 표에 접근하는 코드는 실행 파일에 포함되므로 추출하거나 입출력을 관찰할 수 있다.
+The small game's collision calculation was replaced with a precomputed table whose index order and result representation were changed. The question was whether this would make the collision rule harder to recover from executable code. The transformation was applied manually to this specimen, not implemented as a general game protector. Both the table and its access code remain in the executable and can be extracted or investigated through input-output observations.
 
-표와 데이터 인코딩을 사용하는 보호는 이미 연구된 분야이므로 이 아이디어의 독창성은 입증되지 않았다. [기존 난독화 분류 연구](https://link.springer.com/article/10.1186/s42400-020-00049-3)와 [데이터 난독화 연구](https://www.aspire-fp7.eu/sites/default/files/D2.01-ASPIRE-Early-White-Box-Cryptography-and-Data-Obfuscation-Report-v1.01.pdf)를 참고했다.
+Table-based protection and data encoding are established research areas; novelty has not been demonstrated. References include the [layered-obfuscation taxonomy](https://link.springer.com/article/10.1186/s42400-020-00049-3) and the [ASPIRE data-obfuscation report](https://www.aspire-fp7.eu/sites/default/files/D2.01-ASPIRE-Early-White-Box-Cryptography-and-Data-Obfuscation-Report-v1.01.pdf).
 
-## 정확성 및 성능
+## Correctness and performance
 
-기준과 후보는 경계값·난수 1,004개에서 일치했다. 터미널 게임의 자동 입력 500회 후 최종 화면과 성능 실험 최종 상태도 일치했다. 모든 입력과 게임 기능을 증명한 것은 아니다.
+The baseline and candidate agreed on 1,004 boundary and random inputs. Final screens after 500 scripted game inputs and final benchmark state also agreed. These checks do not establish correctness for all inputs or all game features.
 
-| 방식 | 게임 업데이트와 메모리 내 화면 생성 중앙값 | 95백분위수 중앙값 |
+| Technique | Median update and in-memory frame generation | Median 95th percentile |
 | --- | ---: | ---: |
-| 보호 없음 | 0.85 μs | 0.94 μs |
-| 함수 분리 | 1.18 μs | 1.52 μs |
-| 인코딩 | 2.03 μs | 2.10 μs |
-| 단순 VM | 15.61 μs | 39.03 μs |
-| 표 기반 후보 | 1.25 μs | 1.31 μs |
+| Unprotected | 0.85 μs | 0.94 μs |
+| Function splitting | 1.18 μs | 1.52 μs |
+| Encoding | 2.03 μs | 2.10 μs |
+| Simple VM | 15.61 μs | 39.03 μs |
+| Table candidate | 1.25 μs | 1.31 μs |
 
-![성능 비교](figures/candidate-performance.png)
+![Performance comparison](figures/candidate-performance.png)
 
-WSL2, GCC 15.2.0 `-O2`, 200개 적, 게임 업데이트 6,000회씩 5번 무작위 순서로 실행한 중앙값이다. 출력·입력 대기와 실제 화면 표시는 제외된다. 이 수치는 FPS가 아니며 실제 엔진 기반 게임의 성능을 대표하지 않는다. 기준과 후보의 중앙값 비율은 약 1.47배다. REA 실행과 이 성능 측정은 분리했다.
+The workload used 200 enemies and 6,000 game updates per run, with five randomly ordered runs on WSL2 and GCC 15.2.0 `-O2`. Output, input waiting, and actual display work were excluded. These are not FPS or engine-wide performance results. The candidate/baseline median ratio was approximately 1.47×. Performance measurement and REA analysis ran separately.
 
-`size`로 확인한 코드·상수·데이터 등의 합계는 보호 없음 2,432바이트, 후보 11,924바이트다(ELF 파일 크기와는 다른 메모리 섹션 합계). 표 생성은 1회 5.407ms였다. 단일 디버그 컴파일·링크 5회의 중앙값은 보호 없음 175.6ms, 후보 182.2ms로, 생성 단계와 실제 게임 통합 작업 시간은 제외된다. 작은 프로젝트의 측정이므로 개발 부담을 일반화할 수 없다. GDB 중단점과 호출 스택은 확인됐지만 게임 엔진, 복잡한 오류 추적, 원본 매핑은 검증하지 못했다.
+Section sizes reported by `size` totaled 2,432 bytes for the unprotected executable and 11,924 bytes for the candidate; these are loaded-section totals rather than ELF file sizes. One table-generation measurement was 5.407 ms. Five debug compile/link runs had medians of 175.6 ms for baseline and 182.2 ms for candidate, excluding generation and game integration. This small-project measurement cannot represent total development effort. GDB breakpoints and call stacks were checked; real-engine integration, difficult debugging, and original-source mapping were not.
 
-## REA 독립 재구현
+## Separate REA reconstruction
 
-이전 대화와 소스를 받지 않은 별도 평가자가 REA/Ghidra로 함수의 표 접근을 분석하고 실행 파일의 표를 추출해 별도의 프로그램에 내장했다. 평가자의 재구현은 원본 실행 파일을 실행 시 필요로 하지 않았다. 평가자의 자체 검증 입력 305개와 주 평가자가 별도로 생성한 입력 260개에서 원본과 출력·종료 코드가 일치했다. 이것은 표가 포함된 동작의 재현이지 표에 담긴 규칙을 완전히 설명해냈다는 증거는 아니다.
+An evaluator without the original source or previous conversation used REA/Ghidra to examine table access, extracted the executable's table, and embedded it in a separate program. The reconstructed program did not access the original executable at runtime. Its stdout and exit code matched on 305 evaluator test inputs and another 260 separately generated inputs. This demonstrates reproduction using the table, not necessarily a complete explanation of the rule represented by it.
 
-평가자 보고 소요 시간은 약 71초지만, 단 한 차례였고 비교군과 동시에 실행한 통제 실험이 아니므로 다른 보호 방식과 시간 차이를 비교할 수 없다. 이전 대화와 소스를 제공하지 않고 지정 폴더 외부를 읽지 않도록 지시했지만 운영체제 수준 접근 차단은 적용하지 않았다. 평가 대상은 게임 전체가 아니라 단일 로직 바이너리다. 입력 전체에 대해 동등성을 증명하지도 않았다.
+The evaluator reported approximately 71 seconds, but this was one trial without a simultaneous controlled baseline. It cannot establish a timing difference from other techniques. Folder restrictions were instruction-based rather than OS-enforced. The target was a single logic binary, not a whole game, and full-input equivalence was not proved.
 
-**결론:** 이 특정 표 기반 시제품은 실행 파일의 표를 복사하는 방식으로 재구현되었으므로 복제 방지에 실패했다. 기존 단순 VM보다 이 게임 루프의 실행 비용은 낮았지만, 보호 효과가 더 좋다고 결론낼 수 없다. 표를 이용한 보호 전반이나 다른 조합에 대한 결론은 아니다.
+**Conclusion:** this particular prototype failed to prevent reproduction because its table could be extracted and reused. It had lower update costs than the simple VM in this workload, but better protection was not demonstrated. The result does not assess all table-based techniques or their combinations.
